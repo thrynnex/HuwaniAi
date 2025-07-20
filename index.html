@@ -1,0 +1,975 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Huwani AI</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/4.2.12/marked.min.js"></script>
+    
+    <!-- Syntax Highlighting for Code Canvas -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+
+    <style>
+        :root {
+            --background-dark: #131314;
+            --surface-dark: #1e1e1e;
+            --input-dark: #2a2a2e;
+            --primary-dark: #888eff;
+            --on-surface-dark: #e3e3e3;
+            --on-surface-dark-secondary: #9b9b9b;
+            --border-dark: #333333;
+
+            --background-light: #f7f7f8;
+            --surface-light: #ffffff;
+            --input-light: #f1f1f1;
+            --primary-light: #575eff;
+            --on-surface-light: #1f1f1f;
+            --on-surface-light-secondary: #6b6b6b;
+            --border-light: #e5e7eb;
+        }
+
+        /* Base styles */
+        body { 
+            font-family: 'Inter', sans-serif; 
+            transition: background-color 0.3s, color 0.3s;
+        }
+        .dark body { background-color: var(--background-dark); color: var(--on-surface-dark); }
+        .light body { background-color: var(--background-light); color: var(--on-surface-light); }
+
+        /* Component background colors */
+        .bg-surface { background-color: var(--surface-light); }
+        .dark .bg-surface { background-color: var(--surface-dark); }
+        
+        .bg-input { background-color: var(--input-light); }
+        .dark .bg-input { background-color: var(--input-dark); }
+
+        /* Text colors */
+        .text-primary { color: var(--primary-light); }
+        .dark .text-primary { color: var(--primary-dark); }
+
+        .text-secondary { color: var(--on-surface-light-secondary); }
+        .dark .text-secondary { color: var(--on-surface-dark-secondary); }
+        
+        /* Border colors */
+        .border-color { border-color: var(--border-light); }
+        .dark .border-color { border-color: var(--border-dark); }
+        
+        /* Custom UI element styles */
+        .active-tool { color: var(--primary-light); font-weight: 600; }
+        .dark .active-tool { color: var(--primary-dark); }
+
+        .scroll-hidden::-webkit-scrollbar { display: none; }
+        .scroll-hidden { -ms-overflow-style: none; scrollbar-width: none; }
+
+        #prompt-input::placeholder { color: var(--on-surface-light-secondary); }
+        .dark #prompt-input::placeholder { color: var(--on-surface-dark-secondary); }
+        
+        #send-btn:not(:disabled) { background-color: var(--primary-light); }
+        .dark #send-btn:not(:disabled) { background-color: var(--primary-dark); }
+        #send-btn:disabled { background-color: #d1d5db; cursor: not-allowed; }
+        .dark #send-btn:disabled { background-color: #4b5563; }
+
+        /* Ensure long words/code lines break correctly */
+        .ai-content-container {
+            word-break: break-word;
+        }
+        .ai-content-container pre {
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        
+        /* REFINED: Smooth transitions for thought process */
+        .thought-process { 
+            transition: max-height 0.4s ease-in-out, opacity 0.3s ease-in-out; 
+            max-height: 0; 
+            opacity: 0;
+            overflow: hidden; 
+        }
+        .thought-process.expanded { 
+            max-height: 500px; /* Adjust as needed */
+            opacity: 1;
+        }
+
+        /* Typing cursor animation */
+        .typing-cursor {
+            display: inline-block;
+            width: 8px;
+            height: 1.1em;
+            background-color: var(--on-surface-light);
+            animation: blink 1s step-end infinite;
+            border-radius: 2px;
+            vertical-align: text-bottom;
+        }
+        .dark .typing-cursor { background-color: var(--on-surface-dark); }
+        @keyframes blink {
+            from, to { background-color: transparent }
+            50% { background-color: var(--on-surface-dark); }
+        }
+        .dark @keyframes blink {
+            from, to { background-color: transparent }
+            50% { background-color: var(--on-surface-dark); }
+        }
+        .light @keyframes blink {
+            from, to { background-color: transparent }
+            50% { background-color: var(--on-surface-light); }
+        }
+    </style>
+</head>
+<body class="overflow-hidden">
+
+    <div id="app" class="h-screen w-full flex relative overflow-hidden">
+        
+        <!-- Drawer (Sidebar) -->
+        <div id="drawer" class="absolute lg:relative top-0 left-0 h-full w-72 bg-surface transform -translate-x-full lg:translate-x-0 transition-transform duration-300 ease-in-out z-40 flex flex-col border-r border-color">
+            <div class="p-4 flex-shrink-0">
+                <button id="new-chat-btn" class="w-full flex items-center justify-center gap-2 px-4 py-2 border border-color rounded-lg font-semibold text-sm hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+                    <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 4a1 1 0 0 1 1 1v6h6a1 1 0 1 1 0 2h-6v6a1 1 0 1 1-2 0v-6H5a1 1 0 1 1 0-2h6V5a1 1 0 0 1 1-1z"></path></svg>
+                    New Chat
+                </button>
+            </div>
+            <div id="history-container" class="flex-grow overflow-y-auto p-4 space-y-2 scroll-hidden"></div>
+            <div class="p-4 border-t border-color flex-shrink-0">
+                <button id="settings-btn" class="flex items-center space-x-3 w-full p-2 rounded-md hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
+                    <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                    <span>Settings</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Drawer Overlay for mobile -->
+        <div id="drawer-overlay" class="fixed inset-0 bg-black bg-opacity-50 z-30 hidden lg:hidden"></div>
+
+        <!-- Main Content -->
+        <div id="main-content" class="flex-1 flex flex-col bg-transparent overflow-hidden">
+            <!-- Header -->
+            <header class="flex items-center justify-between p-4 flex-shrink-0 gap-4">
+                <div class="flex items-center space-x-2 flex-1 min-w-0">
+                    <button id="menu-btn" class="p-2 rounded-md lg:hidden flex-shrink-0"><svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7" /></svg></button>
+                    <h1 id="chat-title" class="text-xl font-semibold truncate">Huwani AI</h1>
+                </div>
+                <button id="share-btn" class="px-4 py-2 bg-surface rounded-lg font-semibold text-sm border border-color hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors flex-shrink-0">Share</button>
+            </header>
+
+            <!-- Chat Area -->
+            <main id="chat-area" class="flex-1 overflow-y-auto p-4 md:p-6 scroll-hidden flex flex-col">
+                <div id="chat-container" class="max-w-3xl w-full mx-auto space-y-8 flex-grow">
+                    <!-- Welcome Message/Chat content is dynamically added here -->
+                </div>
+            </main>
+
+            <!-- Prompt Input -->
+            <footer class="p-4 flex-shrink-0">
+                <div class="max-w-3xl mx-auto">
+                    <div class="bg-surface p-2 rounded-xl shadow-lg border border-color">
+                        <div class="flex items-end gap-2">
+                            <textarea id="prompt-input" rows="1" class="flex-1 bg-transparent p-2 pr-4 resize-none focus:outline-none text-base scroll-hidden" placeholder="Message Huwani AI..."></textarea>
+                            <button id="send-btn" class="self-end mb-1 p-2.5 rounded-full text-white transition-colors disabled:opacity-50">
+                                <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M3.478 2.405a.75.75 0 0 0-.926.94l2.432 7.905H13.5a.75.75 0 0 1 0 1.5H4.984l-2.432 7.905a.75.75 0 0 0 .926.94 60.519 60.519 0 0 0 18.445-8.986.75.75 0 0 0 0-1.218A60.517 60.517 0 0 0 3.478 2.405Z"></path></svg>
+                            </button>
+                        </div>
+                        <div class="flex items-center justify-center space-x-4 mt-2 pt-2 border-t border-color text-sm text-secondary">
+                             <button class="flex items-center space-x-1.5 ai-tool-btn" data-tool="deepthink"><svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"></path></svg><span>DeepThink</span></button>
+                             <button class="flex items-center space-x-1.5 ai-tool-btn" data-tool="websearch"><svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93s3.05-7.44 7-7.93v15.86zm2-15.86c1.03.13 2 .45 2.87.93L15 6.02V5c0-1.1-.9-2-2-2h-1V2.07zM15 12c0 1.66-1.34 3-3 3s-3-1.34-3-3 1.34-3 3-3 3 1.34 3 3z"></path></svg><span>Web Search</span></button>
+                             <button class="flex items-center space-x-1.5 ai-tool-btn" data-tool="imagegen"><svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"></path></svg><span>Image</span></button>
+                        </div>
+                    </div>
+                </div>
+            </footer>
+        </div>
+
+        <!-- Settings Page -->
+        <div id="settings-page" class="absolute top-0 left-0 w-full h-full bg-surface transform translate-x-full transition-transform duration-300 ease-in-out z-50 flex flex-col">
+            <header class="flex items-center p-4 border-b border-color flex-shrink-0">
+                <button id="close-settings-page" class="p-2 rounded-md mr-2">
+                    <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
+                </button>
+                <h2 class="text-xl font-semibold">Settings</h2>
+            </header>
+            <div class="p-6 space-y-6 overflow-y-auto">
+                <div class="flex items-center justify-between">
+                    <span class="font-semibold text-lg">Theme</span>
+                    <div class="flex items-center gap-2 p-1 rounded-full bg-input">
+                        <button id="theme-light-btn" class="p-2 rounded-full">
+                             <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M12 12a5 5 0 100-10 5 5 0 000 10z"></path></svg>
+                        </button>
+                         <button id="theme-dark-btn" class="p-2 rounded-full">
+                             <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path></svg>
+                        </button>
+                    </div>
+                </div>
+                 <div class="border-t border-color pt-4">
+                    <h3 class="font-semibold text-lg mb-2">Data Management</h3>
+                    <div class="flex items-center justify-between text-sm">
+                        <p>Total chat history size:</p>
+                        <span id="storage-size" class="font-mono text-primary">0 KB</span>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3 mt-4">
+                        <button id="import-history-btn" class="w-full px-4 py-2 border border-color rounded-lg font-semibold text-sm hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">Import History</button>
+                        <button id="export-history-btn" class="w-full px-4 py-2 border border-color rounded-lg font-semibold text-sm hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">Export History</button>
+                    </div>
+                     <button id="clear-history-btn" class="w-full mt-4 px-4 py-2 border border-red-500/50 text-red-500 rounded-lg font-semibold text-sm hover:bg-red-500/10 transition-colors">Clear All History</button>
+                     <input type="file" id="import-file-input" class="hidden" accept=".json">
+                </div>
+                <div class="border-t border-color pt-4">
+                    <h3 class="font-semibold text-lg mb-2">About Us</h3>
+                    <p class="text-sm text-secondary">Huwani AI is a modern, intelligent assistant powered by Google's Gemini models. Designed for seamless interaction, it provides thoughtful responses, web-powered answers, and stunning visuals.</p>
+                </div>
+                <div class="border-t border-color pt-4">
+                    <h3 class="font-semibold text-lg mb-4">Follow Us</h3>
+                    <div class="flex items-center justify-center space-x-6">
+                        <a href="#" target="_blank" title="Instagram" class="text-secondary hover:text-primary transition-colors">
+                            <svg class="h-8 w-8" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.85s-.012 3.584-.07 4.85c-.148 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07s-3.584-.012-4.85-.07c-3.252-.148-4.771-1.691-4.919-4.919-.058-1.265-.07-1.645-.07-4.85s.012-3.584.07-4.85c.148-3.225 1.664-4.771 4.919-4.919C8.416 2.175 8.796 2.163 12 2.163zm0 1.441c-3.117 0-3.483.01-4.71.068-2.81.128-4.142 1.458-4.27 4.27C3.01 9.275 3 9.648 3 12s.01 2.725.068 3.948c.128 2.812 1.458 4.142 4.27 4.27 1.227.058 1.593.068 4.71.068s3.483-.01 4.71-.068c2.812-.128 4.142-1.458 4.27-4.27.058-1.223.068-1.593.068-4.71s-.01-3.483-.068-4.71c-.128-2.812-1.458-4.142-4.27-4.27C15.483 3.613 15.117 3.604 12 3.604zm0 4.41a4.982 4.982 0 100 9.964 4.982 4.982 0 000-9.964zm0 1.441a3.54 3.54 0 110 7.08 3.54 3.54 0 010-7.08zM16.95 6.502a1.2 1.2 0 100 2.4 1.2 1.2 0 000-2.4z"></path>
+                            </svg>
+                        </a>
+                        <a href="#" target="_blank" title="Telegram" class="text-secondary hover:text-primary transition-colors">
+                            <svg class="h-8 w-8" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.17.9-.49 1.2-.82 1.23-.696.065-1.225-.46-1.9- .902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.79-2.083-1.443-1.06-2.268.98-1.02 6.5-5.964 6.93-6.395.034-.032.06-.075.01-.14-.05-.065-.12-.08-.2-.05-.12.042-2.03 1.29-5.533 3.545-.58.38-.94.54-1.2.53-.38-.01-.76-.15-1.14-.31-.45-.18-.8-.25-.85-.44-.02-.08 0-.17.09-.26.2-.2.43-.36.69-.51 2.32-1.24 3.85-2.04 4.65-2.45.16-.08.3-.13.41-.13z"></path>
+                            </svg>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Confirmation Modal -->
+    <div id="confirm-modal" class="fixed inset-0 bg-black bg-opacity-60 z-50 hidden items-center justify-center p-4">
+        <div class="bg-surface rounded-lg shadow-xl w-full max-w-sm">
+            <div class="p-6">
+                <h3 id="confirm-title" class="text-lg font-bold mb-2">Are you sure?</h3>
+                <p id="confirm-message" class="text-sm text-secondary mb-6">This action cannot be undone.</p>
+                <div class="flex justify-end gap-3">
+                    <button id="confirm-cancel-btn" class="px-4 py-2 rounded-lg font-semibold text-sm hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">Cancel</button>
+                    <button id="confirm-action-btn" class="px-4 py-2 bg-red-600 text-white rounded-lg font-semibold text-sm hover:bg-red-700 transition-colors">Confirm</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed bottom-5 right-5 bg-gray-900 text-white px-5 py-3 rounded-lg shadow-lg opacity-0 translate-y-10 transition-all duration-300 z-50">
+        <p id="toast-message"></p>
+    </div>
+
+    <script type="module">
+        // --- Element Selection ---
+        const getEl = (id) => document.getElementById(id);
+        const drawer = getEl('drawer'), menuBtn = getEl('menu-btn'), promptInput = getEl('prompt-input');
+        const sendBtn = getEl('send-btn'), chatContainer = getEl('chat-container'), newChatBtn = getEl('new-chat-btn');
+        const historyContainer = getEl('history-container'), chatTitle = getEl('chat-title');
+        const settingsBtn = getEl('settings-btn'), settingsPage = getEl('settings-page'), closeSettingsPage = getEl('close-settings-page');
+        const drawerOverlay = getEl('drawer-overlay');
+        const toolButtons = document.querySelectorAll('.ai-tool-btn');
+        const themeLightBtn = getEl('theme-light-btn'), themeDarkBtn = getEl('theme-dark-btn');
+        const clearHistoryBtn = getEl('clear-history-btn'), storageSizeEl = getEl('storage-size');
+        const confirmModal = getEl('confirm-modal'), confirmTitle = getEl('confirm-title'), confirmMessage = getEl('confirm-message');
+        const confirmActionBtn = getEl('confirm-action-btn'), confirmCancelBtn = getEl('confirm-cancel-btn');
+        const importHistoryBtn = getEl('import-history-btn'), exportHistoryBtn = getEl('export-history-btn'), importFileInput = getEl('import-file-input');
+
+
+        // --- State Management ---
+        let activeTool = 'deepthink', chatHistory = [], currentChatId = null;
+        let confirmCallback = null;
+        let isGenerating = false;
+
+        // --- Gemini API Configuration ---
+        // IMPORTANT: PASTE YOUR GOOGLE AI STUDIO API KEY HERE
+        const API_KEY = "API_KEY"; 
+        
+        // *** THE ONLY CHANGE IS HERE: Added `&alt=sse` to enable proper streaming ***
+        const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:streamGenerateContent?key=${API_KEY}&alt=sse`;
+        
+        const IMAGEN_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict?key=${API_KEY}`;
+        const NON_STREAMING_GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${API_KEY}`;
+
+
+        // --- Event Listeners ---
+        menuBtn.addEventListener('click', (e) => { e.stopPropagation(); toggleDrawer(true); });
+        drawerOverlay.addEventListener('click', () => toggleDrawer(false));
+        promptInput.addEventListener('input', handlePromptInput);
+        sendBtn.addEventListener('click', () => handleSend());
+        promptInput.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }});
+        toolButtons.forEach(button => button.addEventListener('click', () => selectTool(button.dataset.tool)));
+        newChatBtn.addEventListener('click', startNewChat);
+        settingsBtn.addEventListener('click', () => toggleSettingsPage(true));
+        closeSettingsPage.addEventListener('click', () => toggleSettingsPage(false));
+        themeLightBtn.addEventListener('click', () => applyTheme('light'));
+        themeDarkBtn.addEventListener('click', () => applyTheme('dark'));
+        chatContainer.addEventListener('click', handleChatActions);
+        getEl('share-btn').addEventListener('click', () => showToast('Share functionality coming soon!'));
+        clearHistoryBtn.addEventListener('click', handleClearHistory);
+        confirmCancelBtn.addEventListener('click', () => toggleConfirmModal(false));
+        confirmActionBtn.addEventListener('click', () => {
+            if (typeof confirmCallback === 'function') confirmCallback();
+            toggleConfirmModal(false);
+        });
+        exportHistoryBtn.addEventListener('click', handleExportHistory);
+        importHistoryBtn.addEventListener('click', () => importFileInput.click());
+        importFileInput.addEventListener('change', handleImportHistory);
+        
+        // --- Marked.js & Highlight.js Configuration ---
+        const renderer = new marked.Renderer();
+        renderer.code = (code, lang) => {
+            const language = hljs.getLanguage(lang) ? lang : 'plaintext';
+            const highlightedCode = hljs.highlight(code, { language, ignoreIllegals: true }).value;
+            return `
+            <div class="code-canvas bg-gray-800/50 dark:bg-black/50 rounded-lg my-2 overflow-hidden border border-color">
+                <div class="code-canvas-header flex justify-between items-center px-4 py-2 bg-surface">
+                    <span class="text-xs font-mono text-secondary">${language}</span>
+                    <button class="copy-code-btn flex items-center gap-1.5 text-xs text-secondary hover:text-primary transition-colors">
+                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                        <span>Copy</span>
+                    </button>
+                </div>
+                <pre class="p-4 overflow-x-auto text-sm"><code class="hljs ${language}">${highlightedCode}</code></pre>
+            </div>`;
+        };
+        marked.setOptions({ renderer });
+        
+        // This function is no longer needed as highlight.js handles escaping
+        // function escapeHtml(html) {
+        //     return html.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        // }
+
+
+        // --- Core Functions ---
+        async function handleSend(isRegeneration = false, promptOverride = '') {
+            if (isGenerating) return;
+             if (!API_KEY) {
+                showToast("API Key is missing. Please add it in the script.", true);
+                return;
+            }
+
+            const prompt = isRegeneration ? promptOverride : promptInput.value.trim();
+            if (!prompt) return;
+
+            if (!isRegeneration) {
+                const userMessage = { role: 'user', content: prompt };
+                addMessageToUI(userMessage);
+                updateChatHistory(userMessage);
+            }
+            
+            promptInput.value = '';
+            handlePromptInput();
+
+            const aiMessageId = `ai-${Date.now()}`;
+            addMessageToUI({ role: 'model', isLoading: true, content: '' }, aiMessageId);
+            
+            isGenerating = true;
+            handlePromptInput();
+
+            try {
+                if (activeTool === 'imagegen') {
+                    await generateImage(prompt, aiMessageId);
+                } else {
+                    await generateText(prompt, aiMessageId);
+                }
+            } catch (error) {
+                 console.error("An error occurred in handleSend:", error);
+                 const errorMessage = { role: 'model', content: `Sorry, a critical error occurred.`, isError: true };
+                 updateMessageUI(aiMessageId, errorMessage);
+                 updateChatHistory(errorMessage);
+            } finally {
+                isGenerating = false;
+                handlePromptInput();
+            }
+        }
+
+        async function callApi(url, payload) {
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            if (!response.ok) {
+                const errorBody = await response.json().catch(() => response.text());
+                console.error("API Error Response:", errorBody);
+                const errorMessage = errorBody?.error?.message || `API Error (${response.status})`;
+                throw new Error(errorMessage);
+            }
+            return response.json();
+        }
+
+        function typewriter(element, onFinished) {
+            let textQueue = '';
+            let isTyping = false;
+            let currentText = '';
+            let animationFrameId = null;
+
+            function type() {
+                if (textQueue.length > 0) {
+                    currentText += textQueue.charAt(0);
+                    textQueue = textQueue.substring(1);
+                    element.innerHTML = marked.parse(currentText + '<span class="typing-cursor"></span>');
+                    scrollToBottom();
+                    animationFrameId = requestAnimationFrame(type);
+                } else {
+                    isTyping = false;
+                    element.innerHTML = marked.parse(currentText); // Remove cursor
+                    if (onFinished) {
+                        onFinished(currentText);
+                    }
+                }
+            }
+
+            return {
+                add: (text) => {
+                    textQueue += text;
+                    if (!isTyping) {
+                        isTyping = true;
+                        // Clear any lingering cursor before starting
+                        element.innerHTML = marked.parse(currentText);
+                        animationFrameId = requestAnimationFrame(type);
+                    }
+                },
+                finish: () => {
+                    if (animationFrameId) cancelAnimationFrame(animationFrameId);
+                    isTyping = false;
+                    currentText += textQueue;
+                    textQueue = '';
+                    element.innerHTML = marked.parse(currentText);
+                    if (onFinished) {
+                        onFinished(currentText);
+                    }
+                },
+                destroy: () => {
+                     if (animationFrameId) cancelAnimationFrame(animationFrameId);
+                }
+            };
+        }
+
+
+        // --- UPDATED FUNCTION WITH ENHANCED LOGGING ---
+        async function generateText(prompt, messageId) {
+            const messageWrapper = getEl(messageId);
+            if (!messageWrapper) {
+                console.error("Could not find message wrapper with ID:", messageId);
+                return;
+            }
+            const contentContainer = messageWrapper.querySelector('.ai-content-container');
+            
+            const currentChat = chatHistory.find(c => c.id === currentChatId);
+            const historyForApi = currentChat.messages
+                .filter(m => !m.isError)
+                .slice(-10) 
+                .map(m => ({ role: m.role, parts: [{ text: m.content }] }));
+            
+            const payload = { contents: [...historyForApi, {role: 'user', parts: [{text: prompt}]}] };
+            
+            const typer = typewriter(contentContainer, (fullResponse) => {
+                contentContainer.querySelectorAll('pre code').forEach(block => {
+                    hljs.highlightElement(block);
+                });
+                const aiMessage = { role: 'model', content: fullResponse };
+                updateChatHistory(aiMessage);
+                updateMessageUIActions(messageId, aiMessage);
+                
+                if (currentChat.messages.filter(m => m.role === 'user').length === 1) { 
+                    generateChatTitle(currentChat.id, prompt, fullResponse);
+                }
+            });
+            
+            if (activeTool === 'deepthink') {
+                generateAndSetThoughtProcess(messageId, prompt);
+            }
+
+            try {
+                const response = await fetch(GEMINI_API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) {
+                    const errorBody = await response.json().catch(() => response.text());
+                    const errorMessage = errorBody?.error?.message || `API Error (${response.status})`;
+                    throw new Error(errorMessage);
+                }
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) {
+                        break;
+                    }
+
+                    const chunk = decoder.decode(value);
+                    const lines = chunk.split('\n');
+
+                    for (const line of lines) {
+                        if (line.trim().startsWith('data:')) {
+                            const jsonStr = line.substring(5).trim();
+                            if (jsonStr) {
+                                try {
+                                    const data = JSON.parse(jsonStr);
+                                    const textPart = data.candidates?.[0]?.content?.parts?.[0]?.text;
+                                    if (textPart) {
+                                        typer.add(textPart);
+                                    }
+                                } catch (e) {
+                                    console.warn("Could not parse JSON chunk:", jsonStr, "Error:", e);
+                                }
+                            }
+                        }
+                    }
+                }
+                typer.finish();
+            } catch (error) {
+                console.error("Full error in generateText:", error);
+                const errorMessage = { role: 'model', content: `Sorry, an error occurred: ${error.message}. Please check the developer console for more information.`, isError: true };
+                updateMessageUI(messageId, errorMessage);
+                updateChatHistory(errorMessage);
+                typer.destroy();
+            }
+        }
+
+        async function generateAndSetThoughtProcess(messageId, prompt) {
+            const wrapper = getEl(messageId);
+            const thinkingUIContainer = wrapper.querySelector('.thinking-ui-container');
+            if (!thinkingUIContainer) return;
+            
+            try {
+                const thoughtPrompt = `In a few brief bullet points, explain the thought process for answering the user's prompt. User Prompt: "${prompt}"`;
+                const result = await callApi(NON_STREAMING_GEMINI_URL, { contents: [{ parts: [{ text: thoughtPrompt }] }] });
+                const thoughtProcessText = result.candidates[0].content.parts[0].text;
+
+                thinkingUIContainer.innerHTML = `
+                    <div class="flex items-center gap-3">
+                        <svg class="h-5 w-5 text-primary flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"></path></svg>
+                        <button class="toggle-thinking flex items-center gap-2 font-semibold text-sm text-secondary">
+                            <span>Show thinking</span>
+                            <svg class="chevron h-4 w-4 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                        </button>
+                    </div>
+                    <div class="thought-process pl-8">
+                        <div class="border-l border-color pl-4 py-2 text-secondary">
+                            ${marked.parse(thoughtProcessText)}
+                        </div>
+                    </div>`;
+                thinkingUIContainer.classList.remove('hidden');
+
+            } catch (error) {
+                console.warn("Could not generate thought process:", error);
+                thinkingUIContainer.classList.add('hidden');
+            }
+        }
+        
+        async function generateImage(prompt, messageId) {
+            try {
+                const result = await callApi(IMAGEN_API_URL, { instances: [{ prompt }], parameters: { "sampleCount": 1 } });
+                const imageUrl = `data:image/png;base64,${result.predictions[0].bytesBase64Encoded}`;
+                const aiMessage = { role: 'model', content: imageUrl, isImage: true };
+                updateMessageUI(messageId, aiMessage);
+                updateChatHistory(aiMessage);
+            } catch (error) {
+                console.error("Imagen API Error:", error);
+                const errorMessage = { role: 'model', content: `Sorry, I couldn't generate the image. ${error.message}`, isError: true };
+                updateMessageUI(messageId, errorMessage);
+                updateChatHistory(errorMessage);
+            }
+        }
+
+        async function generateChatTitle(chatId, userPrompt, aiResponse) {
+            const prompt = `Create a very short, 3-5 word title for this conversation:\nUser: ${userPrompt}\nAI: ${aiResponse.substring(0, 100)}...`;
+            try {
+                const result = await callApi(NON_STREAMING_GEMINI_URL, { contents: [{ parts: [{ text: prompt }] }] });
+                const title = result.candidates[0].content.parts[0].text.replace(/"/g, '').trim();
+                const chat = chatHistory.find(c => c.id === chatId);
+                if (chat) {
+                    chat.title = title;
+                    saveChatsToStorage();
+                    renderHistoryList();
+                    if (chatId === currentChatId) chatTitle.textContent = title;
+                }
+            } catch (error) {
+                console.error("Title Generation Error:", error);
+            }
+        }
+        
+        function handleChatActions(e) {
+            const target = e.target;
+            const actionsBtn = target.closest('.actions-btn');
+            const actionItem = target.closest('.action-item');
+            const toggleThinkingBtn = target.closest('.toggle-thinking');
+            const copyBtn = target.closest('.copy-code-btn');
+
+            if (copyBtn) {
+                const codeToCopy = copyBtn.closest('.code-canvas').querySelector('code').innerText;
+                navigator.clipboard.writeText(codeToCopy).then(() => {
+                    copyBtn.innerHTML = `<svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.052-.143z" clip-rule="evenodd" /></svg><span>Copied!</span>`;
+                    setTimeout(() => {
+                        copyBtn.innerHTML = `<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg><span>Copy</span>`;
+                    }, 2000);
+                });
+                return;
+            }
+
+            if (actionsBtn) {
+                e.stopPropagation();
+                const menu = actionsBtn.nextElementSibling;
+                const isHidden = menu.classList.contains('hidden');
+                document.querySelectorAll('.actions-menu').forEach(m => m.classList.add('hidden'));
+                if(isHidden) menu.classList.remove('hidden');
+            } 
+            else if (actionItem) {
+                const wrapper = target.closest('.ai-message-wrapper');
+                
+                switch(actionItem.dataset.action) {
+                    case 'copy':
+                        const contentContainer = wrapper.querySelector('.ai-content-container');
+                        const messageContent = contentContainer.innerText || contentContainer.querySelector('img')?.src;
+                        navigator.clipboard.writeText(messageContent).then(() => showToast('Copied to clipboard!'));
+                        break;
+                    case 'regenerate':
+                        const chat = chatHistory.find(c => c.id === currentChatId);
+                        if (chat && chat.messages.length > 0) {
+                            const lastUserMessageIndex = chat.messages.map(m => m.role).lastIndexOf('user');
+                            if (lastUserMessageIndex !== -1) {
+                                const lastUserMessage = chat.messages[lastUserMessageIndex];
+                                chat.messages.splice(lastUserMessageIndex + 1);
+                                saveChatsToStorage();
+                                loadChat(chat.id); // Re-render chat correctly
+                                handleSend(true, lastUserMessage.content);
+                            }
+                        }
+                        break;
+                }
+                actionItem.closest('.actions-menu').classList.add('hidden');
+            } 
+            else if (toggleThinkingBtn) {
+                const thoughtDiv = toggleThinkingBtn.parentElement.nextElementSibling;
+                thoughtDiv.classList.toggle('expanded');
+                toggleThinkingBtn.querySelector('.chevron').classList.toggle('rotate-180');
+            }
+        }
+
+        // --- UI Rendering & Helpers ---
+        function addWelcomeMessage() {
+            chatContainer.innerHTML = `<div id="welcome-message" class="flex flex-col items-center justify-center h-full text-center p-4"><div class="w-16 h-16 mb-4 rounded-full bg-primary/10 dark:bg-primary/20 flex items-center justify-center"><svg class="w-10 h-10 text-primary" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"></path></svg></div><h1 class="text-3xl md:text-4xl font-bold mb-2">Welcome to Huwani AI</h1><p class="text-lg text-secondary">How can I help you today?</p></div>`;
+        }
+
+        function addMessageToUI(messageData, messageId = null) {
+            getEl('welcome-message')?.remove();
+            
+            const wrapper = document.createElement('div');
+            wrapper.className = 'flex flex-col';
+            if (messageId) wrapper.id = messageId;
+
+            if (messageData.role === 'user') {
+                wrapper.classList.add('items-end');
+                wrapper.innerHTML = `<div class="bg-surface p-3 rounded-xl max-w-full md:max-w-[80%] break-words">${marked.parseInline(messageData.content)}</div>`;
+            } else {
+                wrapper.classList.add('items-start', 'space-y-2', 'ai-message-wrapper');
+                wrapper.innerHTML = `
+                    <div class="w-full flex justify-between items-start">
+                        <h3 class="font-bold text-primary">Huwani AI</h3>
+                        <div class="relative">
+                            ${renderAiActions(messageData)}
+                        </div>
+                    </div>
+                    <div class="thinking-ui-container hidden w-full mb-2"></div>
+                    <div class="ai-content-container w-full">${renderAiContent(messageData)}</div>
+                `;
+            }
+            chatContainer.appendChild(wrapper);
+            scrollToBottom();
+        }
+        
+        function updateMessageUI(messageId, messageData) {
+            const wrapper = getEl(messageId);
+            if(wrapper) {
+                wrapper.querySelector('.ai-content-container').innerHTML = renderAiContent(messageData);
+                updateMessageUIActions(messageId, messageData);
+            }
+        }
+        
+        function updateMessageUIActions(messageId, messageData) {
+            const wrapper = getEl(messageId);
+            if (wrapper) {
+                const actionsContainer = wrapper.querySelector('.relative');
+                if (actionsContainer) actionsContainer.innerHTML = renderAiActions(messageData);
+            }
+        }
+
+        function renderAiContent(messageData) {
+            if (messageData.isLoading) {
+                return `<span class="typing-cursor"></span>`;
+            }
+            if (messageData.isImage) {
+                return `<img src="${messageData.content}" alt="Generated Image" class="rounded-lg max-w-full md:max-w-sm bg-surface p-1">`;
+            }
+            if (messageData.isError) {
+                return `<p class="text-red-500">${messageData.content}</p>`;
+            }
+            const parsed = marked.parse(messageData.content);
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = parsed;
+            tempDiv.querySelectorAll('pre code').forEach(block => {
+                hljs.highlightElement(block);
+            });
+            return tempDiv.innerHTML;
+        }
+
+        function renderAiActions(messageData) {
+            if (messageData.isLoading || messageData.isError) return '';
+             return `
+                <button class="actions-btn p-1.5 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700">
+                    <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z"></path></svg>
+                </button>
+                <div class="actions-menu hidden absolute top-full right-0 mt-1 bg-surface border border-color rounded-lg shadow-lg py-1 w-36 z-10">
+                    <button data-action="copy" class="action-item w-full text-left px-3 py-1.5 text-sm hover:bg-gray-200 dark:hover:bg-gray-700 flex items-center space-x-2"><span>Copy</span></button>
+                    <button data-action="regenerate" class="action-item w-full text-left px-3 py-1.5 text-sm hover:bg-gray-200 dark:hover:bg-gray-700 flex items-center space-x-2"><span>Regenerate</span></button>
+                </div>`;
+        }
+        
+        function scrollToBottom() { chatContainer.parentElement.scrollTop = chatContainer.parentElement.scrollHeight; }
+
+        function handlePromptInput() {
+            promptInput.style.height = 'auto';
+            const scrollHeight = promptInput.scrollHeight;
+            const maxHeight = 200;
+            promptInput.style.height = `${Math.min(scrollHeight, maxHeight)}px`;
+            promptInput.style.overflowY = (scrollHeight > maxHeight) ? 'auto' : 'hidden';
+            sendBtn.disabled = promptInput.value.trim().length === 0 || isGenerating;
+        }
+
+        function showToast(message, isError = false) {
+            const toast = getEl('toast');
+            toast.querySelector('#toast-message').textContent = message;
+            toast.classList.toggle('bg-red-600', isError);
+            toast.classList.toggle('bg-gray-900', !isError);
+            toast.classList.remove('opacity-0', 'translate-y-10');
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-10');
+            }, 3000);
+        }
+
+        // --- History & Storage ---
+        const CHAT_HISTORY_KEY = 'huwani-ai-chats-v2.8';
+        const saveChatsToStorage = () => {
+            localStorage.setItem(CHAT_HISTORY_KEY, JSON.stringify(chatHistory));
+            updateStorageSize();
+        };
+        const loadChatsFromStorage = () => JSON.parse(localStorage.getItem(CHAT_HISTORY_KEY) || '[]');
+        
+        function updateStorageSize() {
+            const data = localStorage.getItem(CHAT_HISTORY_KEY);
+            if (!data || !storageSizeEl) {
+                if(storageSizeEl) storageSizeEl.textContent = '0 KB';
+                return;
+            }
+            const sizeInBytes = new Blob([data]).size;
+            const sizeInKB = (sizeInBytes / 1024).toFixed(2);
+            storageSizeEl.textContent = `${sizeInKB} KB`;
+        }
+
+        function handleClearHistory() {
+            toggleConfirmModal(true, 'Clear All Chat History?', 'This will permanently delete all your conversations.', () => {
+                localStorage.removeItem(CHAT_HISTORY_KEY);
+                chatHistory = [];
+                startNewChat();
+                showToast('Chat history cleared.');
+            });
+        }
+        
+        function renderHistoryList() {
+            historyContainer.innerHTML = '';
+            if(chatHistory.length === 0) {
+                historyContainer.innerHTML = '<p class="text-secondary text-sm px-2">No past conversations.</p>';
+                return;
+            }
+            [...chatHistory].reverse().forEach(chat => {
+                const historyItem = document.createElement('button');
+                historyItem.className = `w-full text-left p-2 rounded-md hover:bg-gray-200 dark:hover:bg-gray-800 truncate transition-colors ${chat.id === currentChatId ? 'bg-gray-200 dark:bg-gray-700' : ''}`;
+                historyItem.textContent = chat.title || 'New Chat';
+                historyItem.dataset.chatId = chat.id;
+                historyItem.addEventListener('click', () => { loadChat(chat.id); });
+                historyContainer.appendChild(historyItem);
+            });
+        }
+        
+        function startNewChat() {
+            currentChatId = Date.now().toString();
+            chatHistory.push({ id: currentChatId, messages: [], title: "New Chat" });
+            chatContainer.innerHTML = '';
+            addWelcomeMessage();
+            chatTitle.textContent = "Huwani AI";
+            saveChatsToStorage();
+            renderHistoryList();
+            toggleDrawer(false);
+        }
+
+        function updateChatHistory(message) {
+            const currentChat = chatHistory.find(c => c.id === currentChatId);
+            if (currentChat && !message.isLoading) {
+                const lastMessage = currentChat.messages[currentChat.messages.length - 1];
+                if (lastMessage && lastMessage.role === 'model') {
+                    currentChat.messages[currentChat.messages.length - 1] = message;
+                } else {
+                    currentChat.messages.push(message);
+                }
+                saveChatsToStorage();
+            }
+        }
+
+        function loadChat(chatId) {
+            const chat = chatHistory.find(c => c.id === chatId);
+            if (chat) {
+                currentChatId = chatId;
+                chatContainer.innerHTML = '';
+                chatTitle.textContent = chat.title || "Huwani AI";
+                if (chat.messages.length > 0) {
+                    chat.messages.forEach(msg => {
+                        const messageId = msg.role === 'model' ? `ai-${chat.messages.indexOf(msg)}` : null;
+                        addMessageToUI(msg, messageId);
+                    });
+                } else {
+                    addWelcomeMessage();
+                }
+                renderHistoryList();
+                toggleDrawer(false);
+            }
+        }
+
+        // --- Import/Export Functions ---
+        function handleExportHistory() {
+            if (chatHistory.length === 0) {
+                showToast("No history to export.");
+                return;
+            }
+            const dataStr = JSON.stringify(chatHistory, null, 2);
+            const dataBlob = new Blob([dataStr], { type: "application/json" });
+            const url = URL.createObjectURL(dataBlob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `huwani-ai-history-${new Date().toISOString().split('T')[0]}.json`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+            showToast("History exported successfully!");
+        }
+
+        function handleImportHistory(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const importedData = JSON.parse(e.target.result);
+                    if (!Array.isArray(importedData) || importedData.some(chat => !chat.id || !chat.messages)) {
+                        throw new Error("Invalid file format.");
+                    }
+                    
+                    toggleConfirmModal(true, 'Import History?', 'This will overwrite your current chat history. Are you sure you want to continue?', () => {
+                        chatHistory = importedData;
+                        saveChatsToStorage();
+                        showToast("History imported successfully!");
+                        if (chatHistory.length > 0) {
+                            loadChat(chatHistory[chatHistory.length - 1].id);
+                        } else {
+                            startNewChat();
+                        }
+                        renderHistoryList();
+                        toggleSettingsPage(false);
+                    });
+
+                } catch (error) {
+                    showToast(`Error importing file: ${error.message}`);
+                } finally {
+                    importFileInput.value = '';
+                }
+            };
+            reader.readAsText(file);
+        }
+        
+        // --- UI Toggles & Theme ---
+        function applyTheme(theme) {
+            localStorage.setItem('huwani-ai-theme', theme);
+            document.documentElement.className = theme;
+            if (theme === 'dark') {
+                themeDarkBtn.classList.add('bg-primary', 'text-white');
+                themeLightBtn.classList.remove('bg-primary', 'text-white');
+            } else {
+                themeLightBtn.classList.add('bg-primary', 'text-white');
+                themeDarkBtn.classList.remove('bg-primary', 'text-white');
+            }
+        }
+
+        function toggleDrawer(show) {
+            if (show) {
+                drawer.classList.remove('-translate-x-full');
+                drawerOverlay.classList.remove('hidden');
+            } else {
+                drawer.classList.add('-translate-x-full');
+                drawerOverlay.classList.add('hidden');
+            }
+        }
+
+        function toggleSettingsPage(show) {
+            if (show) {
+                updateStorageSize();
+                settingsPage.classList.remove('translate-x-full');
+            } else {
+                settingsPage.classList.add('translate-x-full');
+            }
+        }
+
+        function toggleConfirmModal(show, title = '', message = '', onConfirm = null) {
+            if (show) {
+                confirmTitle.textContent = title;
+                confirmMessage.textContent = message;
+                confirmCallback = onConfirm;
+                confirmModal.classList.remove('hidden');
+                confirmModal.classList.add('flex');
+            } else {
+                confirmModal.classList.add('hidden');
+                confirmModal.classList.remove('flex');
+                confirmCallback = null;
+            }
+        }
+
+        function selectTool(tool) {
+            activeTool = tool;
+            toolButtons.forEach(btn => btn.classList.remove('active-tool'));
+            document.querySelector(`.ai-tool-btn[data-tool="${tool}"]`).classList.add('active-tool');
+            promptInput.focus();
+        }
+
+        // --- INITIALIZATION ---
+        function init() {
+            sendBtn.disabled = true;
+            applyTheme(localStorage.getItem('huwani-ai-theme') || 'dark');
+            chatHistory = loadChatsFromStorage();
+            
+            if (chatHistory.length > 0) {
+                loadChat(chatHistory[chatHistory.length - 1].id);
+            } else {
+                startNewChat();
+            }
+
+            renderHistoryList();
+            selectTool('deepthink');
+
+            document.body.addEventListener('click', (e) => {
+                if (!e.target.closest('.actions-btn')) {
+                    document.querySelectorAll('.actions-menu').forEach(menu => menu.classList.add('hidden'));
+                }
+            });
+            
+            if (!API_KEY) {
+                showToast("API Key is not set. Please edit the script.", true);
+            }
+        }
+
+        init();
+    </script>
+</body>
+</html>
